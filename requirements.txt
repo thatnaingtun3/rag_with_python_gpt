@@ -1,0 +1,11 @@
+langchain
+langchain-ollama
+pandas
+pinecone
+langchain-pinecone
+python-dotenv
+fastapi
+uvicorn 
+python-multipart 
+langchain-openai
+langchain-text-splitters
