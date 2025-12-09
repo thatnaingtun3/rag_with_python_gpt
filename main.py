@@ -345,7 +345,7 @@ qa_system = QASystem()
 
 
 # API Routes
-@app.get("/api", response_model=StatusResponse)
+@app.get("/", response_model=StatusResponse)
 async def root():
     """Get system status"""
     pinecone_stats = qa_system.get_pinecone_stats()
@@ -358,7 +358,7 @@ async def root():
     )
 
 
-@app.post("/api/upload", response_model=UploadResponse)
+@app.post("/upload", response_model=UploadResponse)
 async def upload_document(
     background_tasks: BackgroundTasks, file: UploadFile = File(...)
 ):
@@ -409,7 +409,7 @@ async def upload_document(
         file.file.close()
 
 
-@app.post("/api/question/stream", response_model=QuestionResponse)
+@app.post("/question/stream", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
     """Ask a question about the uploaded documents"""
 
@@ -445,7 +445,7 @@ async def ask_question(request: QuestionRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/clear")
+@app.delete("/clear")
 async def clear_vector_store():
     """Clear all documents from the vector store and reset state"""
     try:
@@ -466,7 +466,7 @@ async def clear_vector_store():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/health")
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
     pinecone_stats = qa_system.get_pinecone_stats()
@@ -488,7 +488,7 @@ async def health_check():
     }
 
 
-@app.get("/api/documents")
+@app.get("/documents")
 async def list_documents():
     """List all uploaded documents"""
     return {
