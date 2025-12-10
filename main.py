@@ -129,21 +129,22 @@ class QASystem:
 
             # Setup Q&A chain
             template = """
-You are an expert assistant helping answer questions about uploaded documents.
+You are an expert assistant helping students by providing detailed responses based on the uploaded documents.
 
-Here are relevant sections from the documents:
+Below are relevant sections extracted from the documents:
 {context}
 
-Question: {question}
+Student's Enquiry: {question}
 
-Please provide a detailed answer based on the document sections above. 
-If the answer isn't in the provided text, please say so clearly.
-Answer:"""
+Please provide a clear, formal, and comprehensive response based on the information provided in the document sections above. If the answer cannot be found within the provided text, kindly state that explicitly.
+
+Response:
+"""
 
             prompt = ChatPromptTemplate.from_template(template)
             self.chain = prompt | self.model
 
-            print("✅ Q&A System initialized successfully!")
+            print("✅ Student Enquiry Assistant system initialized successfully!")
 
         except Exception as e:
             print(f"❌ Error initializing system: {str(e)}")
