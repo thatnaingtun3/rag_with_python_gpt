@@ -77,6 +77,9 @@ class QASystem:
         self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
         self.pinecone_index = os.getenv("PINECONE_INDEX")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        # self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+        self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.1")
+# gpt-5.1
 
         if not all([self.pinecone_api_key, self.pinecone_index, self.openai_api_key]):
             raise ValueError("Missing required environment variables")
@@ -119,7 +122,9 @@ class QASystem:
 
             # Setup chat model
             self.model = ChatOpenAI(
-                model="gpt-4", temperature=0.1, openai_api_key=self.openai_api_key
+                model=self.chat_model_name,
+                temperature=0.1,
+                openai_api_key=self.openai_api_key,
             )
 
             # Setup retriever
@@ -136,7 +141,7 @@ Below are relevant sections extracted from the documents:
 
 Student's Enquiry: {question}
 
-Please provide a clear, formal, and comprehensive response based on the information provided in the document sections above. If the answer cannot be found within the provided text, kindly state that explicitly.
+Please provide a clear, formal, and comprehensive response based on the information provided in the document sections above. Respond in plain sentences only; do not use markdown, bullet points, or special formatting. If the answer cannot be found within the provided text, kindly state that explicitly in plain text.
 
 Response:
 """
