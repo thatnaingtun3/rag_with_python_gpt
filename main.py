@@ -78,8 +78,8 @@ class QASystem:
         self.pinecone_index = os.getenv("PINECONE_INDEX")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         # self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
-        self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL", "gpt-5.1")
-# gpt-5.1
+        self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL")
+        # gpt-5.1
 
         if not all([self.pinecone_api_key, self.pinecone_index, self.openai_api_key]):
             raise ValueError("Missing required environment variables")

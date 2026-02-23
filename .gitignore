@@ -9,5 +9,16 @@ wheels/
 # Virtual environments
 .venv
 
+# Environment variables
 .env
+
+# Data directory (uploaded documents and state files)
+data/
+
+# IDE and system files
 .pyre
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
