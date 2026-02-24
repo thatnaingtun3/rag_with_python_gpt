@@ -51,7 +51,7 @@ class QuestionResponse(BaseModel):
     status: str
     message: str
     question: str
-    answer: str
+    answer: str  # Markdown-formatted string — render with react-markdown on frontend
     relevant_chunks: int
     timestamp: str
 
@@ -77,9 +77,7 @@ class QASystem:
         self.pinecone_api_key = os.getenv("PINECONE_API_KEY")
         self.pinecone_index = os.getenv("PINECONE_INDEX")
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        # self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
         self.chat_model_name = os.getenv("OPENAI_CHAT_MODEL")
-        # gpt-5.1
 
         if not all([self.pinecone_api_key, self.pinecone_index, self.openai_api_key]):
             raise ValueError("Missing required environment variables")
@@ -132,18 +130,45 @@ class QASystem:
                 search_type="similarity", search_kwargs={"k": 3}
             )
 
-            # Setup Q&A chain
+            # ----------------------------------------------------------------
+            # Q&A Prompt Template — Production Version
+            # Responses are returned as Markdown for frontend rendering.
+            # ----------------------------------------------------------------
             template = """
-You are an expert assistant helping students by providing detailed responses based on the uploaded documents.
+You are a knowledgeable and professional academic assistant for Liberty Global School.
+Your role is to provide accurate, well-structured responses to student enquiries
+based strictly on the document context provided below.
 
-Below are relevant sections extracted from the documents:
+---
+
+### Relevant Document Sections:
 {context}
 
-Student's Enquiry: {question}
+---
 
-Please provide a clear, formal, and comprehensive response based on the information provided in the document sections above. Respond in plain sentences only; do not use markdown, bullet points, or special formatting. If the answer cannot be found within the provided text, kindly state that explicitly in plain text.
+### Student's Enquiry:
+{question}
 
-Response:
+---
+
+### Response Guidelines:
+- Answer ONLY using information found in the document sections above.
+- Format your response using proper **Markdown** including:
+  - `##` headings to organize sections where appropriate
+  - **bold** for key terms or important points
+  - Bullet lists or numbered steps when listing multiple items
+  - Tables when comparing or presenting structured data
+  - `> blockquote` for quoting important policy statements from the document
+- Keep your tone formal, clear, and student-friendly.
+- If the answer is not available in the provided context, respond exactly with:
+
+  > I'm sorry, this information is not available in the provided documents.
+  > Please contact the administration office for further assistance.
+
+- Always close with a brief helpful note if applicable, e.g., directing the student
+  to contact the relevant department for follow-up.
+
+### Response:
 """
 
             prompt = ChatPromptTemplate.from_template(template)
@@ -190,17 +215,13 @@ Response:
     def _sync_with_pinecone(self):
         """Check Pinecone index for existing data"""
         try:
-            # Get index stats
             index = self.pinecone_client.Index(self.pinecone_index)
             stats = index.describe_index_stats()
-
-            # Update total chunks based on Pinecone data
             vector_count = stats.get("total_vector_count", 0)
 
             if vector_count > 0:
                 print(f"🔄 Found {vector_count} vectors in Pinecone index")
 
-                # If we have vectors but no local state, update state
                 if not self.current_documents and vector_count > 0:
                     self.current_documents = [
                         "[Previous documents detected in Pinecone]"
@@ -278,28 +299,23 @@ Response:
         """Process and store document embeddings"""
         self.is_processing = True
         try:
-            # Create chunks
             documents = self.create_text_chunks(content, filename)
             chunks_created = len(documents)
 
-            # Create embeddings and add to vector store
             embeddings = OpenAIEmbeddings(
                 model="text-embedding-3-small",
                 openai_api_key=self.openai_api_key,
                 dimensions=1024,
             )
 
-            # Add documents to existing vector store
             await asyncio.get_event_loop().run_in_executor(
                 executor, self.vector_store.add_documents, documents
             )
 
-            # Update state
             if filename not in self.current_documents:
                 self.current_documents.append(filename)
             self.total_chunks += chunks_created
 
-            # Save state to file
             self._save_state()
 
             return chunks_created
@@ -308,36 +324,36 @@ Response:
             self.is_processing = False
 
     async def ask_question(self, question: str, top_k: int = 3) -> dict:
-        """Ask a question and get an answer"""
+        """Ask a question and get a Markdown-formatted answer"""
         if not all([self.retriever, self.chain]):
             raise ValueError("System not properly initialized")
 
-        # Update retriever with new k value
+        # Update retriever k value dynamically
         self.retriever.search_kwargs = {"k": top_k}
 
-        # Get relevant chunks and generate answer
+        # Retrieve relevant context chunks
         context_docs = await asyncio.get_event_loop().run_in_executor(
             executor, self.retriever.invoke, question
         )
 
+        # Generate Markdown-formatted answer
         result = await asyncio.get_event_loop().run_in_executor(
             executor, self.chain.invoke, {"context": context_docs, "question": question}
         )
 
-        return {"answer": result.content, "relevant_chunks": len(context_docs)}
+        return {
+            "answer": result.content,  # Markdown string
+            "relevant_chunks": len(context_docs),
+        }
 
     async def clear_all_data(self):
         """Clear all data from Pinecone and reset state"""
         try:
-            # Clear Pinecone index
             index = self.pinecone_client.Index(self.pinecone_index)
             index.delete(delete_all=True)
 
-            # Reset state
             self.current_documents = []
             self.total_chunks = 0
-
-            # Save cleared state
             self._save_state()
 
             return True
@@ -350,7 +366,11 @@ Response:
 qa_system = QASystem()
 
 
+# ──────────────────────────────────────────────
 # API Routes
+# ──────────────────────────────────────────────
+
+
 @app.get("/", response_model=StatusResponse)
 async def root():
     """Get system status"""
@@ -370,13 +390,11 @@ async def upload_document(
 ):
     """Upload and process a text document"""
 
-    # Validate file type
     if not file.filename.endswith((".txt", ".md")):
         raise HTTPException(
             status_code=400, detail="Only .txt and .md files are supported"
         )
 
-    # Check if system is already processing
     if qa_system.is_processing:
         raise HTTPException(
             status_code=503,
@@ -384,22 +402,18 @@ async def upload_document(
         )
 
     try:
-        # Create data directory if it doesn't exist
         os.makedirs("data", exist_ok=True)
 
-        # Save uploaded file
         file_path = f"data/{file.filename}"
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Read file content
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         if not content:
             raise HTTPException(status_code=400, detail="File is empty")
 
-        # Process document
         chunks_created = await qa_system.process_document(content, file.filename)
 
         return UploadResponse(
@@ -417,9 +431,12 @@ async def upload_document(
 
 @app.post("/question/stream", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
-    """Ask a question about the uploaded documents"""
+    """
+    Ask a question about the uploaded documents.
+    The `answer` field in the response is a Markdown-formatted string.
+    Render it on the frontend using react-markdown or similar.
+    """
 
-    # Check if we have any documents (either in state or in Pinecone)
     pinecone_stats = qa_system.get_pinecone_stats()
     has_vectors = pinecone_stats and pinecone_stats.get("total_vectors", 0) > 0
 
@@ -442,7 +459,7 @@ async def ask_question(request: QuestionRequest):
             status="success",
             message="Answer generated successfully",
             question=request.question,
-            answer=result["answer"],
+            answer=result["answer"],  # Markdown string
             relevant_chunks=result["relevant_chunks"],
             timestamp=datetime.now().isoformat(),
         )
